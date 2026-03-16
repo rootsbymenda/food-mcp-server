@@ -143,6 +143,14 @@ export class FoodMCP extends McpAgent<Env> {
           source_type: additive.source_type,
           safety_score: additive.safety_score,
           safety_score_scale: "1 (safest) to 10 (most concerning)",
+          chemistry: {
+            pubchem_cid: additive.pubchem_cid || null,
+            molecular_formula: additive.molecular_formula || null,
+            molecular_weight: additive.molecular_weight || null,
+            iupac_name: additive.iupac_name || null,
+            inchikey: additive.inchikey || null,
+            xlogp: additive.xlogp || null,
+          },
           adi: {
             value: additive.adi_value,
             unit: additive.adi_unit,
