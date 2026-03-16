@@ -1,0 +1,16 @@
+name = "food-mcp-server"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[durable_objects]
+bindings = [{ name = "MCP_OBJECT", class_name = "FoodMCP" }]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["FoodMCP"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "benda-ingredients"
+database_id = "1f3b5be0-78c1-49e5-959a-8817b5ddebbf"
