@@ -480,6 +480,210 @@ export class FoodMCP extends McpAgent<Env> {
         };
       }
     );
+
+    // Tool 4: check_nutrition — look up nutritional profile of an Israeli food
+    this.server.tool(
+      "check_nutrition",
+      "Look up the full nutritional profile of a food item from the Israeli MOH nutrition database. Returns calories, macros (protein, fat, carbs), vitamins, minerals, amino acids, and fatty acid breakdown. Search by Hebrew or English name.",
+      {
+        query: z
+          .string()
+          .describe(
+            "Food name in Hebrew or English (e.g. 'חומוס', 'hummus', 'chicken breast', 'לחם')"
+          ),
+      },
+      async ({ query }) => {
+        const q = query.trim();
+
+        // Try exact English match
+        let food = await this.env.DB.prepare(
+          `SELECT * FROM moh_nutrition WHERE english_name = ? COLLATE NOCASE`
+        )
+          .bind(q)
+          .first();
+
+        // Try exact Hebrew match
+        if (!food) {
+          food = await this.env.DB.prepare(
+            `SELECT * FROM moh_nutrition WHERE hebrew_name = ? COLLATE NOCASE`
+          )
+            .bind(q)
+            .first();
+        }
+
+        // Try fuzzy English
+        if (!food) {
+          food = await this.env.DB.prepare(
+            `SELECT * FROM moh_nutrition WHERE english_name LIKE ? COLLATE NOCASE LIMIT 1`
+          )
+            .bind(`%${q}%`)
+            .first();
+        }
+
+        // Try fuzzy Hebrew
+        if (!food) {
+          food = await this.env.DB.prepare(
+            `SELECT * FROM moh_nutrition WHERE hebrew_name LIKE ? COLLATE NOCASE LIMIT 1`
+          )
+            .bind(`%${q}%`)
+            .first();
+        }
+
+        if (!food) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  error: "not_found",
+                  message: `No food found matching "${query}". Try searching in Hebrew or English (e.g. 'rice', 'אורז').`,
+                }),
+              },
+            ],
+          };
+        }
+
+        const result = {
+          hebrew_name: food.hebrew_name,
+          english_name: food.english_name,
+          per_100g: {
+            energy_kcal: food.food_energy,
+            protein_g: food.protein,
+            total_fat_g: food.total_fat,
+            carbohydrates_g: food.carbohydrates,
+            dietary_fiber_g: food.total_dietary_fiber,
+            total_sugars_g: food.total_sugars,
+            alcohol_g: food.alcohol,
+            moisture_g: food.moisture,
+          },
+          vitamins: {
+            vitamin_a_iu: food.vitamin_a_iu,
+            vitamin_c_mg: food.vitamin_c,
+            vitamin_e_mg: food.vitamin_e,
+            vitamin_d_mcg: food.vitamin_d,
+            vitamin_k_mcg: food.vitamin_k,
+            vitamin_b6_mg: food.vitamin_b6,
+            vitamin_b12_mcg: food.vitamin_b12,
+            thiamin_b1_mg: food.thiamin,
+            riboflavin_b2_mg: food.riboflavin,
+            niacin_b3_mg: food.niacin,
+            folate_mcg: food.folate,
+          },
+          minerals: {
+            calcium_mg: food.calcium,
+            iron_mg: food.iron,
+            magnesium_mg: food.magnesium,
+            phosphorus_mg: food.phosphorus,
+            potassium_mg: food.potassium,
+            sodium_mg: food.sodium,
+            zinc_mg: food.zinc,
+            selenium_mcg: food.selenium,
+            choline_mg: food.choline,
+          },
+          fats: {
+            cholesterol_mg: food.cholesterol,
+            saturated_fat_g: food.saturated_fat,
+            monounsaturated_fat_g: food.mono_unsaturated_fat,
+            polyunsaturated_fat_g: food.poly_unsaturated_fat,
+            trans_fat_g: food.trans_fatty_acids,
+          },
+          source: "Israel MOH Nutrition Database — Two Halves (twohalves.ai)",
+        };
+
+        return {
+          content: [
+            { type: "text" as const, text: JSON.stringify(result, null, 2) },
+          ],
+        };
+      }
+    );
+
+    // Tool 5: check_pesticide_mrl — check maximum residue limits for pesticides on crops in Israel
+    this.server.tool(
+      "check_pesticide_mrl",
+      "Check the Israeli Maximum Residue Limit (MRL) for a pesticide on a specific crop. Returns the official MRL value in mg/kg (ppm) set by the Israel MOH. Search by pesticide name, crop name, or both.",
+      {
+        query: z
+          .string()
+          .describe(
+            "Pesticide name, crop name, or both (e.g. 'glyphosate', 'tomato', 'chlorpyrifos apple')"
+          ),
+      },
+      async ({ query }) => {
+        const q = query.trim();
+        const parts = q.split(/\s+/);
+
+        let results;
+
+        if (parts.length >= 2) {
+          // Try to match both pesticide and crop
+          results = await this.env.DB.prepare(
+            `SELECT * FROM il_pesticide_mrl
+             WHERE (active_substance LIKE ? COLLATE NOCASE OR crop_english LIKE ? COLLATE NOCASE OR crop_hebrew LIKE ? COLLATE NOCASE)
+               AND (active_substance LIKE ? COLLATE NOCASE OR crop_english LIKE ? COLLATE NOCASE OR crop_hebrew LIKE ? COLLATE NOCASE)
+             LIMIT 20`
+          )
+            .bind(
+              `%${parts[0]}%`, `%${parts[0]}%`, `%${parts[0]}%`,
+              `%${parts.slice(1).join(' ')}%`, `%${parts.slice(1).join(' ')}%`, `%${parts.slice(1).join(' ')}%`
+            )
+            .all();
+        }
+
+        if (!results || !results.results?.length) {
+          results = await this.env.DB.prepare(
+            `SELECT * FROM il_pesticide_mrl
+             WHERE active_substance LIKE ? COLLATE NOCASE
+                OR crop_english LIKE ? COLLATE NOCASE
+                OR crop_hebrew LIKE ? COLLATE NOCASE
+             ORDER BY active_substance, crop_english
+             LIMIT 20`
+          )
+            .bind(`%${q}%`, `%${q}%`, `%${q}%`)
+            .all();
+        }
+
+        if (!results.results?.length) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  error: "not_found",
+                  message: `No MRL records found for "${query}". Try searching by pesticide name (e.g. 'glyphosate') or crop (e.g. 'tomato', 'עגבניה').`,
+                }),
+              },
+            ],
+          };
+        }
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  query,
+                  count: results.results.length,
+                  results: results.results.map((r: Record<string, unknown>) => ({
+                    pesticide: r.active_substance,
+                    crop_hebrew: r.crop_hebrew,
+                    crop_english: r.crop_english,
+                    mrl_mg_per_kg: r.mrl_value,
+                    last_updated: r.update_date,
+                    pending_change: r.mrl_pending || null,
+                  })),
+                  note: "MRL = Maximum Residue Limit in mg/kg (ppm). Values set by Israel MOH.",
+                  source: "Israel MOH Pesticide Residues — Two Halves (twohalves.ai)",
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+    );
   }
 }
 
@@ -497,12 +701,14 @@ export default {
       return new Response(
         JSON.stringify({
           name: "Two Halves Food Safety MCP Server",
-          version: "1.0.0",
+          version: "1.1.0",
           status: "healthy",
           tools: [
             "check_additive",
             "check_ingredient_list",
             "search_additives",
+            "check_nutrition",
+            "check_pesticide_mrl",
           ],
           data: {
             food_additives: "6,450+",
@@ -510,6 +716,8 @@ export default {
             efsa_substances: "5,251+",
             food_synonyms: "77,278+",
             israeli_permitted: "319",
+            nutrition_profiles: "4,624",
+            pesticide_mrls: "3,708",
           },
           docs: "https://twohalves.ai",
         }),
