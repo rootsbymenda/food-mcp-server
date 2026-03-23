@@ -2,6 +2,11 @@ import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
+// Escape LIKE special characters in user input to prevent wildcard injection
+function escapeLike(s: string): string {
+  return s.replace(/[%_\\]/g, '\\$&');
+}
+
 interface Env {
   DB: D1Database;
   MCP_OBJECT: DurableObjectNamespace;
@@ -55,19 +60,21 @@ export class FoodMCP extends McpAgent<Env> {
 
         // Try fuzzy name match
         if (!additive) {
+          const qEsc = escapeLike(q);
           additive = await this.env.DB.prepare(
-            `SELECT * FROM food_additives WHERE common_name LIKE ? COLLATE NOCASE LIMIT 1`
+            `SELECT * FROM food_additives WHERE common_name LIKE ? ESCAPE '\\' COLLATE NOCASE LIMIT 1`
           )
-            .bind(`%${q}%`)
+            .bind(`%${qEsc}%`)
             .first();
         }
 
         // Try synonyms table
         if (!additive) {
+          const qEsc = escapeLike(q);
           const synonym = await this.env.DB.prepare(
-            `SELECT additive_id FROM food_synonyms WHERE synonym LIKE ? COLLATE NOCASE LIMIT 1`
+            `SELECT additive_id FROM food_synonyms WHERE synonym LIKE ? ESCAPE '\\' COLLATE NOCASE LIMIT 1`
           )
-            .bind(`%${q}%`)
+            .bind(`%${qEsc}%`)
             .first();
 
           if (synonym) {
@@ -287,15 +294,16 @@ export class FoodMCP extends McpAgent<Env> {
             .first();
 
           if (!additive) {
+            const nameEsc = escapeLike(name);
             additive = await this.env.DB.prepare(
               `SELECT id, common_name, e_number, cas_number, safety_score, eu_status, us_status,
                       health_concerns, allergen_flag, category, adi_value, adi_unit,
                       banned_countries, hyperactivity_link, children_safe, pregnancy_safe
                FROM food_additives
-               WHERE common_name LIKE ? COLLATE NOCASE
+               WHERE common_name LIKE ? ESCAPE '\\' COLLATE NOCASE
                LIMIT 1`
             )
-              .bind(`%${name}%`)
+              .bind(`%${nameEsc}%`)
               .first();
           }
 
@@ -344,16 +352,15 @@ export class FoodMCP extends McpAgent<Env> {
           }
         }
 
+        const scoredResults = results.filter(
+          (r) => r.safety_score !== undefined && r.safety_score !== null
+        );
         const avgScore =
-          found > 0
-            ? results
-                .filter(
-                  (r) => r.safety_score !== undefined && r.safety_score !== null
-                )
-                .reduce(
-                  (sum, r) => sum + (r.safety_score as number),
-                  0
-                ) / found
+          scoredResults.length > 0
+            ? scoredResults.reduce(
+                (sum, r) => sum + (r.safety_score as number),
+                0
+              ) / scoredResults.length
             : 0;
 
         const summary = {
@@ -407,20 +414,21 @@ export class FoodMCP extends McpAgent<Env> {
       },
       async ({ query, filter, limit }) => {
         const maxResults = Math.min(Math.max(limit || 10, 1), 25);
+        const queryEsc = escapeLike(query);
 
-        let whereClause = `(common_name LIKE ? COLLATE NOCASE
-              OR e_number LIKE ? COLLATE NOCASE
-              OR category LIKE ? COLLATE NOCASE
-              OR function_desc LIKE ? COLLATE NOCASE
-              OR health_concerns LIKE ? COLLATE NOCASE
-              OR hebrew_name LIKE ? COLLATE NOCASE)`;
+        let whereClause = `(common_name LIKE ? ESCAPE '\\' COLLATE NOCASE
+              OR e_number LIKE ? ESCAPE '\\' COLLATE NOCASE
+              OR category LIKE ? ESCAPE '\\' COLLATE NOCASE
+              OR function_desc LIKE ? ESCAPE '\\' COLLATE NOCASE
+              OR health_concerns LIKE ? ESCAPE '\\' COLLATE NOCASE
+              OR hebrew_name LIKE ? ESCAPE '\\' COLLATE NOCASE)`;
         const params: (string | number)[] = [
-          `%${query}%`,
-          `%${query}%`,
-          `%${query}%`,
-          `%${query}%`,
-          `%${query}%`,
-          `%${query}%`,
+          `%${queryEsc}%`,
+          `%${queryEsc}%`,
+          `%${queryEsc}%`,
+          `%${queryEsc}%`,
+          `%${queryEsc}%`,
+          `%${queryEsc}%`,
         ];
 
         if (filter === "high_risk") {
@@ -521,19 +529,21 @@ export class FoodMCP extends McpAgent<Env> {
 
         // Try fuzzy English
         if (!food) {
+          const qEsc = escapeLike(q);
           food = await this.env.DB.prepare(
-            `SELECT * FROM moh_nutrition WHERE english_name LIKE ? COLLATE NOCASE LIMIT 1`
+            `SELECT * FROM moh_nutrition WHERE english_name LIKE ? ESCAPE '\\' COLLATE NOCASE LIMIT 1`
           )
-            .bind(`%${q}%`)
+            .bind(`%${qEsc}%`)
             .first();
         }
 
         // Try fuzzy Hebrew
         if (!food) {
+          const qEsc = escapeLike(q);
           food = await this.env.DB.prepare(
-            `SELECT * FROM moh_nutrition WHERE hebrew_name LIKE ? COLLATE NOCASE LIMIT 1`
+            `SELECT * FROM moh_nutrition WHERE hebrew_name LIKE ? ESCAPE '\\' COLLATE NOCASE LIMIT 1`
           )
-            .bind(`%${q}%`)
+            .bind(`%${qEsc}%`)
             .first();
         }
 
@@ -625,29 +635,32 @@ export class FoodMCP extends McpAgent<Env> {
 
         if (parts.length >= 2) {
           // Try to match both pesticide and crop
+          const p0Esc = escapeLike(parts[0]);
+          const pRestEsc = escapeLike(parts.slice(1).join(' '));
           results = await this.env.DB.prepare(
             `SELECT * FROM il_pesticide_mrl
-             WHERE (active_substance LIKE ? COLLATE NOCASE OR crop_english LIKE ? COLLATE NOCASE OR crop_hebrew LIKE ? COLLATE NOCASE)
-               AND (active_substance LIKE ? COLLATE NOCASE OR crop_english LIKE ? COLLATE NOCASE OR crop_hebrew LIKE ? COLLATE NOCASE)
+             WHERE (active_substance LIKE ? ESCAPE '\\' COLLATE NOCASE OR crop_english LIKE ? ESCAPE '\\' COLLATE NOCASE OR crop_hebrew LIKE ? ESCAPE '\\' COLLATE NOCASE)
+               AND (active_substance LIKE ? ESCAPE '\\' COLLATE NOCASE OR crop_english LIKE ? ESCAPE '\\' COLLATE NOCASE OR crop_hebrew LIKE ? ESCAPE '\\' COLLATE NOCASE)
              LIMIT 20`
           )
             .bind(
-              `%${parts[0]}%`, `%${parts[0]}%`, `%${parts[0]}%`,
-              `%${parts.slice(1).join(' ')}%`, `%${parts.slice(1).join(' ')}%`, `%${parts.slice(1).join(' ')}%`
+              `%${p0Esc}%`, `%${p0Esc}%`, `%${p0Esc}%`,
+              `%${pRestEsc}%`, `%${pRestEsc}%`, `%${pRestEsc}%`
             )
             .all();
         }
 
         if (!results || !results.results?.length) {
+          const qEsc = escapeLike(q);
           results = await this.env.DB.prepare(
             `SELECT * FROM il_pesticide_mrl
-             WHERE active_substance LIKE ? COLLATE NOCASE
-                OR crop_english LIKE ? COLLATE NOCASE
-                OR crop_hebrew LIKE ? COLLATE NOCASE
+             WHERE active_substance LIKE ? ESCAPE '\\' COLLATE NOCASE
+                OR crop_english LIKE ? ESCAPE '\\' COLLATE NOCASE
+                OR crop_hebrew LIKE ? ESCAPE '\\' COLLATE NOCASE
              ORDER BY active_substance, crop_english
              LIMIT 20`
           )
-            .bind(`%${q}%`, `%${q}%`, `%${q}%`)
+            .bind(`%${qEsc}%`, `%${qEsc}%`, `%${qEsc}%`)
             .all();
         }
 
