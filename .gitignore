@@ -2,3 +2,20 @@ node_modules/
 dist/
 .wrangler/
 .dev.vars
+
+# Defensive: never commit raw DB content or local data dumps
+*.sql
+*.csv
+*.tsv
+*.parquet
+*.xlsx
+*.db
+*.sqlite
+*.sqlite3
+_tmp*
+d1-output*
+*.bak
+
+# Internal directories — research and primary-source caches, not for public source
+cir-reports/
+research/
