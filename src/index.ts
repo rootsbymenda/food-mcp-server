@@ -748,6 +748,22 @@ export default {
       );
     }
 
+    if (url.pathname === "/.well-known/mcp/server-card.json") {
+      return Response.json({
+        "$schema": "https://static.modelcontextprotocol.io/schemas/mcp-server-card/v1.json",
+        "version": "1.0",
+        "protocolVersion": "2025-06-18",
+        "serverInfo": { "name": "food-mcp-server", "title": "Two Halves Food Safety MCP Server", "version": "1.1.0" },
+        "description": "Food safety MCP — additives, GRAS, multi-jurisdiction status",
+        "iconUrl": "https://rootsbybenda.com/icon.png",
+        "documentationUrl": "https://rootsbybenda.com",
+        "transport": { "type": "streamable-http", "endpoint": "/mcp" },
+        "capabilities": { "tools": { "listChanged": true }, "resources": { "subscribe": false, "listChanged": false } },
+        "authentication": { "required": false, "schemes": ["bearer"] },
+        "tools": ["dynamic"]
+      }, { headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" } });
+    }
+
     // SSE transport (legacy clients)
     if (url.pathname === "/sse" || url.pathname.startsWith("/sse/")) {
       return FoodMCP.serveSSE("/sse").fetch(request, env, ctx);
