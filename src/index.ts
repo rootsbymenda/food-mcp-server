@@ -7,6 +7,30 @@ function escapeLike(s: string): string {
   return s.replace(/[%_\\]/g, '\\$&');
 }
 
+const RATE_LIMIT_PER_MINUTE = 60;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now >= entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  entry.count++;
+  if (entry.count > RATE_LIMIT_PER_MINUTE) return false;
+  return true;
+}
+
+function rateLimitResponse(): Response {
+  return new Response(JSON.stringify({ error: "Rate limit exceeded. Maximum 60 requests per minute." }), {
+    status: 429,
+    headers: { "Content-Type": "application/json", "Retry-After": "60" },
+  });
+}
+
 interface Env {
   DB: D1Database;
   MCP_OBJECT: DurableObjectNamespace;
@@ -717,6 +741,12 @@ export default {
   ): Promise<Response> {
     const url = new URL(request.url);
 
+    const clientIp = request.headers.get("cf-connecting-ip") || request.headers.get("x-forwarded-for") || "unknown";
+    const isDataEndpoint = url.pathname === "/mcp" || url.pathname === "/sse" || url.pathname.startsWith("/sse/") || (request.method === "POST" && url.pathname === "/");
+    if (isDataEndpoint && !checkRateLimit(clientIp)) {
+      return rateLimitResponse();
+    }
+
     // Health check
     if (url.pathname === "/" || url.pathname === "/health") {
       return new Response(
@@ -760,6 +790,7 @@ export default {
         "transport": { "type": "streamable-http", "endpoint": "/mcp" },
         "capabilities": { "tools": { "listChanged": true }, "resources": { "subscribe": false, "listChanged": false } },
         "authentication": { "required": false, "schemes": ["bearer"] },
+        "rateLimit": { "requestsPerMinute": 60, "enforcement": "per-ip" },
         "tools": ["dynamic"]
       }, { headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" } });
     }
