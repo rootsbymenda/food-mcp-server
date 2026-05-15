@@ -1,0 +1,19 @@
+description: >-
+  Is E171 safe as a food additive? Roots by Benda checks 6,450+ food additives, 6,563+ JECFA evaluations, 5,251+ EFSA substances, 77,278+ synonyms, 4,624 nutrition profiles, and 3,708 pesticide MRLs. Food safety across additives, E-numbers, JECFA/EFSA, halal/kosher/vegan status, nutrition, and pesticide residue limits in one free MCP. Ask your AI: 'check if E171 is safe as a food additive'. Built by one human + Claude. Free. Source-linked.
+startCommand:
+  type: "http"
+  configSchema:
+    type: "object"
+    properties:
+      rootsApiKey:
+        type: "string"
+        title: "Roots API Key"
+        description: "Optional. Supplies a stable user_id for per-user rate limiting; all tools return full data without monetization gates."
+        x-from: "header"
+        x-to:
+          header: "Authorization"
+          prefix: "Bearer "
+    additionalProperties: false
+  exampleConfig:
+    rootsApiKey: "mcp_xxxxxxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  deploymentUrl: "https://food-mcp-server.rootsbybenda.workers.dev"

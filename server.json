@@ -1,0 +1,25 @@
+{
+  "$schema": "https://registry.modelcontextprotocol.io/schema/server.json",
+  "name": "com.rootsbybenda/food-safety",
+  "description": "Food safety and additive regulatory intelligence. Check any food additive by name or E-number — get JECFA/EFSA toxicology, EU/US/Israel status, dietary flags (halal/kosher/vegan), and ADI values. 6,450+ additives, 6,563 JECFA evaluations, 5,251 EFSA substances. Free. Source-linked.",
+  "version": "1.0.0",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://food-mcp-server.rootsbybenda.workers.dev/mcp"
+    },
+    {
+      "type": "sse",
+      "url": "https://food-mcp-server.rootsbybenda.workers.dev/sse"
+    }
+  ],
+  "tools": [
+    { "name": "check_additive", "description": "Full food additive profile: E-number, CAS, ADI, JECFA/EFSA toxicology, EU/US/Israel regulatory status, health flags, dietary flags (vegan/halal/kosher)." },
+    { "name": "check_ingredient_list", "description": "Batch scan a food label ingredient list (up to 60 items). Flags high-risk additives, allergens, and banned substances by market." },
+    { "name": "search_additives", "description": "Search food additives by keyword with filters: high_risk, allergens, banned, not_halal, not_vegan." },
+    { "name": "check_nutrition", "description": "Israeli MOH nutrition database lookup. Full macro/micro/amino/fatty acid breakdown per 100g." },
+    { "name": "check_pesticide_mrl", "description": "Israeli MOH maximum residue limit lookup for pesticide/crop combinations." }
+  ],
+  "homepage": "https://rootsbybenda.com",
+  "contact": "SBD@effortlessai.ai"
+}

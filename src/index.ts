@@ -7,6 +7,24 @@ function escapeLike(s: string): string {
   return s.replace(/[%_\\]/g, '\\$&');
 }
 
+const MAX_QUERY_LENGTH = 120;
+const MAX_QUERY_INPUT_LENGTH = 200;
+const MAX_NAME_LENGTH = 50;
+const MAX_BATCH_INPUT_LENGTH = 4_000;
+const MAX_INGREDIENTS = 60;
+const MAX_SEARCH_RESULTS = 25;
+const MAX_MRL_RESULTS = 20;
+const FOOD_MARKETS = ["EU", "US", "Israel", "IL", "EU + US"] as const;
+const FOOD_SEARCH_FILTERS = ["high_risk", "allergens", "banned", "not_vegan", "not_halal"] as const;
+
+function normalizeQuery(input: string, maxLength = MAX_QUERY_LENGTH): string {
+  return input.trim().replace(/\s+/g, " ").slice(0, maxLength);
+}
+
+function likePattern(input: string): string {
+  return `%${escapeLike(input)}%`;
+}
+
 const RATE_LIMIT_PER_MINUTE = 60;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 
@@ -109,27 +127,84 @@ async function resolveAuth(request: Request, env: Env): Promise<AuthProps> {
 }
 // --- End auth ---
 
+const SERVER_VERSION = "1.0.0";
+const HOMEPAGE = "https://rootsbybenda.com";
+const SOURCE = "Roots by Benda \u2014 rootsbybenda.com";
+const CONTACT = "SBD@effortlessai.ai";
+const SERVER_NAME = "Roots by Benda \u2014 Food Intelligence";
+const SERVER_DESCRIPTION =
+  "Roots by Benda answers whether E171 or another food additive is safe by checking 6,450+ food additives, 6,563+ JECFA evaluations, 5,251+ EFSA substances, 77,278+ synonyms, Israeli nutrition profiles, and pesticide MRLs. It is a free, source-linked food safety MCP for additives, E-numbers, ADI, halal/kosher/vegan compatibility, nutrition, and pesticide residue review; ask your AI: 'check if E171 is safe as a food additive'.";
+const DATA_CATALOG = {
+  food_additives: "6,450+",
+  jecfa_evaluations: "6,563+",
+  efsa_substances: "5,251+",
+  food_synonyms: "77,278+",
+  israeli_permitted: "319",
+  nutrition_profiles: "4,624",
+  pesticide_mrls: "3,708"
+};
+const TOOL_CATALOG = [
+  {
+    name: "check_additive",
+    description: "Look up a food additive by name, E-number, or CAS number. Returns safety score, ADI, JECFA/EFSA evidence, EU/US/Israel status, health concerns, allergens, and vegan/halal/kosher compatibility."
+  },
+  {
+    name: "check_ingredient_list",
+    description: "Scan a packaged-food ingredient list for additive safety and regulatory flags. Returns matched additives, high-risk scores, banned-country notes, allergen warnings, dietary compatibility issues, and an overall food safety assessment."
+  },
+  {
+    name: "search_additives",
+    description: "Search food additives by keyword, category, function, dietary status, or health concern. Use for finding preservatives, colorants, sweeteners, allergens, banned additives, or high-risk E-numbers before a deeper additive check."
+  },
+  {
+    name: "check_nutrition",
+    description: "Look up Israeli Ministry of Health nutrition data for a food item in Hebrew or English. Returns per-100g calories, macronutrients, vitamins, minerals, fatty acids, cholesterol, sugars, and fiber."
+  },
+  {
+    name: "check_pesticide_mrl",
+    description: "Check Israeli pesticide maximum residue limits (MRLs) by pesticide, crop, or combined query. Returns active substance, crop, official MRL value in mg/kg, update date, and pending-change notes."
+  }
+];
+
+function registryMetadata() {
+  return {
+    name: SERVER_NAME,
+    description: SERVER_DESCRIPTION,
+    version: SERVER_VERSION,
+    mcp_endpoint: "/mcp",
+    tools: TOOL_CATALOG,
+    data: DATA_CATALOG,
+    homepage: HOMEPAGE,
+    source: SOURCE,
+    contact: CONTACT,
+  };
+}
+
+
 export class FoodMCP extends McpAgent<Env> {
   // @ts-expect-error agents bundles its own MCP SDK copy; runtime server shape is compatible.
   server = new McpServer({
     name: "roots-food-safety",
-    version: "1.0.0",
+    version: SERVER_VERSION,
   });
 
   async init() {
     // Tool 1: check_additive — lookup by name, E-number, or CAS number
     this.server.tool(
       "check_additive",
-      "Look up a food additive by name, E-number, or CAS number. Returns safety score, ADI (Acceptable Daily Intake), health concerns, EU/US regulatory status, dietary compatibility (vegan, halal, kosher), allergen flags, and Israeli regulatory status.",
+      TOOL_CATALOG[0].description,
       {
         query: z
           .string()
+          .trim()
+          .min(1)
+          .max(MAX_QUERY_INPUT_LENGTH)
           .describe(
             "Food additive name, E-number, or CAS number (e.g. 'aspartame', 'E951', '22839-47-0')"
           ),
       },
       async ({ query }) => {
-        const q = query.trim();
+        const q = normalizeQuery(query);
 
         // Try E-number match first
         let additive = await this.env.DB.prepare(
@@ -158,21 +233,19 @@ export class FoodMCP extends McpAgent<Env> {
 
         // Try fuzzy name match
         if (!additive) {
-          const qEsc = escapeLike(q);
           additive = await this.env.DB.prepare(
             `SELECT * FROM food_additives WHERE common_name LIKE ? ESCAPE '\\' COLLATE NOCASE LIMIT 1`
           )
-            .bind(`%${qEsc}%`)
+            .bind(likePattern(q))
             .first();
         }
 
         // Try synonyms table
         if (!additive) {
-          const qEsc = escapeLike(q);
           const synonym = await this.env.DB.prepare(
             `SELECT additive_id FROM food_synonyms WHERE synonym LIKE ? ESCAPE '\\' COLLATE NOCASE LIMIT 1`
           )
-            .bind(`%${qEsc}%`)
+            .bind(likePattern(q))
             .first();
 
           if (synonym) {
@@ -323,15 +396,18 @@ export class FoodMCP extends McpAgent<Env> {
     // Tool 2: check_ingredient_list — batch check a list of food ingredients
     this.server.tool(
       "check_ingredient_list",
-      "Check a list of food ingredients for safety and regulatory compliance. Pass a product's ingredient list and get flagged additives, banned substances, allergen warnings, and an overall safety assessment.",
+      TOOL_CATALOG[1].description,
       {
         ingredients: z
           .string()
+          .trim()
+          .min(1)
+          .max(MAX_BATCH_INPUT_LENGTH)
           .describe(
             "Comma-separated or newline-separated list of food ingredients (e.g. 'Water, Sugar, Citric Acid, Sodium Benzoate, Aspartame')"
           ),
         market: z
-          .string()
+          .enum(FOOD_MARKETS)
           .optional()
           .describe(
             "Target market for compliance check (e.g. 'EU', 'US', 'Israel'). Defaults to EU + US."
@@ -340,7 +416,7 @@ export class FoodMCP extends McpAgent<Env> {
       async ({ ingredients, market }) => {
         const names = ingredients
           .split(/[,\n]+/)
-          .map((n) => n.trim())
+          .map((n) => normalizeQuery(n, MAX_NAME_LENGTH))
           .filter(Boolean);
 
         if (names.length === 0) {
@@ -357,7 +433,7 @@ export class FoodMCP extends McpAgent<Env> {
           };
         }
 
-        if (names.length > 60) {
+        if (names.length > MAX_INGREDIENTS) {
           return {
             content: [
               {
@@ -365,7 +441,7 @@ export class FoodMCP extends McpAgent<Env> {
                 text: JSON.stringify({
                   error: "too_many",
                   message:
-                    "Maximum 60 ingredients per request. Split into multiple calls.",
+                    `Maximum ${MAX_INGREDIENTS} ingredients per request. Split into multiple calls.`,
                 }),
               },
             ],
@@ -393,7 +469,6 @@ export class FoodMCP extends McpAgent<Env> {
             .first();
 
           if (!additive) {
-            const nameEsc = escapeLike(name);
             additive = await this.env.DB.prepare(
               `SELECT id, common_name, e_number, cas_number, safety_score, eu_status, us_status,
                       health_concerns, allergen_flag, category, adi_value, adi_unit,
@@ -402,7 +477,7 @@ export class FoodMCP extends McpAgent<Env> {
                WHERE common_name LIKE ? ESCAPE '\\' COLLATE NOCASE
                LIMIT 1`
             )
-              .bind(`%${nameEsc}%`)
+              .bind(likePattern(name))
               .first();
           }
 
@@ -493,27 +568,34 @@ export class FoodMCP extends McpAgent<Env> {
     // Tool 3: search_additives — search by keyword, category, or concern
     this.server.tool(
       "search_additives",
-      "Search the food additive database by keyword, category, function, or health concern. Useful for finding all preservatives, colorants linked to hyperactivity, banned additives, etc.",
+      TOOL_CATALOG[2].description,
       {
         query: z
           .string()
+          .trim()
+          .min(1)
+          .max(MAX_QUERY_INPUT_LENGTH)
           .describe(
             "Search keyword (e.g. 'preservative', 'sweetener', 'hyperactivity', 'banned', 'E1')"
           ),
         filter: z
-          .string()
+          .enum(FOOD_SEARCH_FILTERS)
           .optional()
           .describe(
             "Optional filter: 'high_risk' (score >= 7), 'allergens', 'banned', 'not_vegan', 'not_halal'. Leave empty for all matches."
           ),
         limit: z
           .number()
+          .finite()
+          .min(1)
+          .max(MAX_SEARCH_RESULTS)
           .optional()
           .describe("Max results to return (1-25, default 10)"),
       },
       async ({ query, filter, limit }) => {
-        const maxResults = Math.min(Math.max(limit || 10, 1), 25);
-        const queryEsc = escapeLike(query);
+        const maxResults = Math.min(Math.max(limit || 10, 1), MAX_SEARCH_RESULTS);
+        const q = normalizeQuery(query);
+        const pattern = likePattern(q);
 
         let whereClause = `(common_name LIKE ? ESCAPE '\\' COLLATE NOCASE
               OR e_number LIKE ? ESCAPE '\\' COLLATE NOCASE
@@ -522,12 +604,12 @@ export class FoodMCP extends McpAgent<Env> {
               OR health_concerns LIKE ? ESCAPE '\\' COLLATE NOCASE
               OR hebrew_name LIKE ? ESCAPE '\\' COLLATE NOCASE)`;
         const params: (string | number)[] = [
-          `%${queryEsc}%`,
-          `%${queryEsc}%`,
-          `%${queryEsc}%`,
-          `%${queryEsc}%`,
-          `%${queryEsc}%`,
-          `%${queryEsc}%`,
+          pattern,
+          pattern,
+          pattern,
+          pattern,
+          pattern,
+          pattern,
         ];
 
         if (filter === "high_risk") {
@@ -599,16 +681,19 @@ export class FoodMCP extends McpAgent<Env> {
     // Tool 4: check_nutrition — look up nutritional profile of an Israeli food
     this.server.tool(
       "check_nutrition",
-      "Look up the full nutritional profile of a food item from the Israeli MOH nutrition database. Returns calories, macros (protein, fat, carbs), vitamins, minerals, amino acids, and fatty acid breakdown. Search by Hebrew or English name.",
+      TOOL_CATALOG[3].description,
       {
         query: z
           .string()
+          .trim()
+          .min(1)
+          .max(MAX_QUERY_INPUT_LENGTH)
           .describe(
             "Food name in Hebrew or English (e.g. 'חומוס', 'hummus', 'chicken breast', 'לחם')"
           ),
       },
       async ({ query }) => {
-        const q = query.trim();
+        const q = normalizeQuery(query);
 
         // Try exact English match
         let food = await this.env.DB.prepare(
@@ -628,21 +713,19 @@ export class FoodMCP extends McpAgent<Env> {
 
         // Try fuzzy English
         if (!food) {
-          const qEsc = escapeLike(q);
           food = await this.env.DB.prepare(
             `SELECT * FROM moh_nutrition WHERE english_name LIKE ? ESCAPE '\\' COLLATE NOCASE LIMIT 1`
           )
-            .bind(`%${qEsc}%`)
+            .bind(likePattern(q))
             .first();
         }
 
         // Try fuzzy Hebrew
         if (!food) {
-          const qEsc = escapeLike(q);
           food = await this.env.DB.prepare(
             `SELECT * FROM moh_nutrition WHERE hebrew_name LIKE ? ESCAPE '\\' COLLATE NOCASE LIMIT 1`
           )
-            .bind(`%${qEsc}%`)
+            .bind(likePattern(q))
             .first();
         }
 
@@ -718,48 +801,52 @@ export class FoodMCP extends McpAgent<Env> {
     // Tool 5: check_pesticide_mrl — check maximum residue limits for pesticides on crops in Israel
     this.server.tool(
       "check_pesticide_mrl",
-      "Check the Israeli Maximum Residue Limit (MRL) for a pesticide on a specific crop. Returns the official MRL value in mg/kg (ppm) set by the Israel MOH. Search by pesticide name, crop name, or both.",
+      TOOL_CATALOG[4].description,
       {
         query: z
           .string()
+          .trim()
+          .min(1)
+          .max(MAX_QUERY_INPUT_LENGTH)
           .describe(
             "Pesticide name, crop name, or both (e.g. 'glyphosate', 'tomato', 'chlorpyrifos apple')"
           ),
       },
       async ({ query }) => {
-        const q = query.trim();
+        const q = normalizeQuery(query);
         const parts = q.split(/\s+/);
 
         let results;
 
         if (parts.length >= 2) {
           // Try to match both pesticide and crop
-          const p0Esc = escapeLike(parts[0]);
-          const pRestEsc = escapeLike(parts.slice(1).join(' '));
+          const p0Pattern = likePattern(parts[0]);
+          const pRestPattern = likePattern(parts.slice(1).join(" "));
           results = await this.env.DB.prepare(
             `SELECT * FROM il_pesticide_mrl
              WHERE (active_substance LIKE ? ESCAPE '\\' COLLATE NOCASE OR crop_english LIKE ? ESCAPE '\\' COLLATE NOCASE OR crop_hebrew LIKE ? ESCAPE '\\' COLLATE NOCASE)
                AND (active_substance LIKE ? ESCAPE '\\' COLLATE NOCASE OR crop_english LIKE ? ESCAPE '\\' COLLATE NOCASE OR crop_hebrew LIKE ? ESCAPE '\\' COLLATE NOCASE)
-             LIMIT 20`
+             LIMIT ?`
           )
             .bind(
-              `%${p0Esc}%`, `%${p0Esc}%`, `%${p0Esc}%`,
-              `%${pRestEsc}%`, `%${pRestEsc}%`, `%${pRestEsc}%`
+              p0Pattern, p0Pattern, p0Pattern,
+              pRestPattern, pRestPattern, pRestPattern,
+              MAX_MRL_RESULTS
             )
             .all();
         }
 
         if (!results || !results.results?.length) {
-          const qEsc = escapeLike(q);
+          const pattern = likePattern(q);
           results = await this.env.DB.prepare(
             `SELECT * FROM il_pesticide_mrl
              WHERE active_substance LIKE ? ESCAPE '\\' COLLATE NOCASE
                 OR crop_english LIKE ? ESCAPE '\\' COLLATE NOCASE
                 OR crop_hebrew LIKE ? ESCAPE '\\' COLLATE NOCASE
              ORDER BY active_substance, crop_english
-             LIMIT 20`
+             LIMIT ?`
           )
-            .bind(`%${qEsc}%`, `%${qEsc}%`, `%${qEsc}%`)
+            .bind(pattern, pattern, pattern, MAX_MRL_RESULTS)
             .all();
         }
 
@@ -829,33 +916,24 @@ export default {
 
     // Health check
     if (url.pathname === "/" || url.pathname === "/health") {
-      return new Response(
-        JSON.stringify({
-          name: "Roots by Benda Food Safety MCP Server",
-          version: "1.1.0",
-          status: "healthy",
-          tools: [
-            "check_additive",
-            "check_ingredient_list",
-            "search_additives",
-            "check_nutrition",
-            "check_pesticide_mrl",
-          ],
-          data: {
-            food_additives: "6,450+",
-            jecfa_evaluations: "6,563+",
-            efsa_substances: "5,251+",
-            food_synonyms: "77,278+",
-            israeli_permitted: "319",
-            nutrition_profiles: "4,624",
-            pesticide_mrls: "3,708",
-          },
-          docs: "https://rootsbybenda.com",
-        }),
-        {
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+      return Response.json({
+        name: SERVER_NAME,
+        version: SERVER_VERSION,
+        status: "healthy",
+        description: SERVER_DESCRIPTION,
+        tools: TOOL_CATALOG.map((tool) => tool.name),
+        data: DATA_CATALOG,
+        docs: HOMEPAGE,
+        homepage: HOMEPAGE,
+        source: SOURCE,
+      });
+    }
+
+
+    if (url.pathname === "/.well-known/mcp/server.json") {
+      return Response.json(registryMetadata(), {
+        headers: { "Cache-Control": "public, max-age=300" },
+      });
     }
 
     if (url.pathname === "/.well-known/mcp/server-card.json") {
@@ -863,15 +941,15 @@ export default {
         "$schema": "https://static.modelcontextprotocol.io/schemas/mcp-server-card/v1.json",
         "version": "1.0",
         "protocolVersion": "2025-06-18",
-        "serverInfo": { "name": "food-mcp-server", "title": "Roots by Benda Food Safety MCP Server", "version": "1.1.0" },
-        "description": "Food safety MCP — additives, GRAS, multi-jurisdiction status",
+        "serverInfo": { "name": "food-mcp-server", "title": SERVER_NAME, "version": SERVER_VERSION },
+        "description": SERVER_DESCRIPTION,
         "iconUrl": "https://rootsbybenda.com/icon.png",
         "documentationUrl": "https://rootsbybenda.com",
         "transport": { "type": "streamable-http", "endpoint": "/mcp" },
         "capabilities": { "tools": { "listChanged": true }, "resources": { "subscribe": false, "listChanged": false } },
         "authentication": { "required": false, "schemes": ["bearer"], "note": "Optional API key enables per-user rate limiting" },
         "rateLimit": { "requestsPerMinute": 60, "enforcement": "per-ip-or-user" },
-        "tools": ["dynamic"]
+        "tools": TOOL_CATALOG
       }, { headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" } });
     }
 
