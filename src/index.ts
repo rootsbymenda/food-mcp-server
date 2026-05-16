@@ -133,7 +133,7 @@ const SOURCE = "Roots by Benda \u2014 rootsbybenda.com";
 const CONTACT = "SBD@effortlessai.ai";
 const SERVER_NAME = "Roots by Benda \u2014 Food Intelligence";
 const SERVER_DESCRIPTION =
-  "Roots by Benda answers whether E171 or another food additive is safe by checking 6,450+ food additives, 6,563+ JECFA evaluations, 5,251+ EFSA substances, 77,278+ synonyms, Israeli nutrition profiles, and pesticide MRLs. It is a free, source-linked food safety MCP for additives, E-numbers, ADI, halal/kosher/vegan compatibility, nutrition, and pesticide residue review; ask your AI: 'check if E171 is safe as a food additive'.";
+  "Check food additive safety across JECFA, EFSA, dietary, nutrition, and MRL data.";
 const DATA_CATALOG = {
   food_additives: "6,450+",
   jecfa_evaluations: "6,563+",
@@ -146,23 +146,23 @@ const DATA_CATALOG = {
 const TOOL_CATALOG = [
   {
     name: "check_additive",
-    description: "Look up a food additive by name, E-number, or CAS number. Returns safety score, ADI, JECFA/EFSA evidence, EU/US/Israel status, health concerns, allergens, and vegan/halal/kosher compatibility."
+    description: "Check a food additive by name, E-number, or CAS number. Use when the user asks whether an additive such as E171, aspartame, sodium benzoate, tartrazine, or a preservative/color/sweetener is safe, permitted, high-risk, allergenic, vegan, halal, kosher, or regulated. Do not use for full ingredient-list scans, Israeli nutrition lookup, pesticide MRL questions, or broad additive discovery without a specific additive. The response includes additive identifiers, safety score, ADI, JECFA/EFSA evidence, EU/US/Israel status, health concerns, allergens, and dietary compatibility."
   },
   {
     name: "check_ingredient_list",
-    description: "Scan a packaged-food ingredient list for additive safety and regulatory flags. Returns matched additives, high-risk scores, banned-country notes, allergen warnings, dietary compatibility issues, and an overall food safety assessment."
+    description: "Scan a packaged-food ingredient list for additive safety and regulatory flags. Use when the user pastes a label or asks to review a product for high-risk additives, banned additives, allergens, or vegan/halal/kosher compatibility in a target market. Do not use for single additive lookup, nutrition facts lookup, pesticide residue limits, or free-text additive category discovery. The response includes matched additives, risk scores, market-specific regulatory notes, allergen and dietary flags, and an overall food safety assessment."
   },
   {
     name: "search_additives",
-    description: "Search food additives by keyword, category, function, dietary status, or health concern. Use for finding preservatives, colorants, sweeteners, allergens, banned additives, or high-risk E-numbers before a deeper additive check."
+    description: "Search food additives by keyword, function, category, dietary status, or health concern. Use when the user asks to find preservatives, colorants, sweeteners, emulsifiers, allergens, banned additives, non-vegan additives, non-halal additives, or high-risk E-numbers before checking one additive. Do not use when the user provides a full food label, an exact additive needing safety evidence, a nutrition query, or a pesticide/crop residue question. The response includes matching additive names, E-numbers, categories/functions, risk indicators, dietary flags, and filter-matched context."
   },
   {
     name: "check_nutrition",
-    description: "Look up Israeli Ministry of Health nutrition data for a food item in Hebrew or English. Returns per-100g calories, macronutrients, vitamins, minerals, fatty acids, cholesterol, sugars, and fiber."
+    description: "Check Israeli Ministry of Health nutrition data for a food item in Hebrew or English. Use when the user asks for calories, macros, vitamins, minerals, amino acids, fatty acids, sugars, fiber, cholesterol, or per-100g nutrition for a food. Do not use for additive safety, ingredient-list compliance, pesticide MRLs, drug nutrition interactions, or general recipe advice without a food item. The response includes per-100g energy, macronutrients, micronutrients, fatty acids, cholesterol, sugars, fiber, and source food names where matched."
   },
   {
     name: "check_pesticide_mrl",
-    description: "Check Israeli pesticide maximum residue limits (MRLs) by pesticide, crop, or combined query. Returns active substance, crop, official MRL value in mg/kg, update date, and pending-change notes."
+    description: "Check Israeli pesticide maximum residue limits by pesticide, crop, or combined query. Use when the user asks whether a pesticide residue is allowed on a crop, needs an MRL in mg/kg, or provides pairs like glyphosate tomato or chlorpyrifos apple. Do not use for food additive safety, packaged ingredient lists, nutrition facts, cannabis pesticide testing limits, or non-Israeli MRL regimes. The response includes active substance, crop, official MRL value and unit, update date, regulatory notes, and pending-change notes where available."
   }
 ];
 
@@ -200,7 +200,7 @@ export class FoodMCP extends McpAgent<Env> {
           .min(1)
           .max(MAX_QUERY_INPUT_LENGTH)
           .describe(
-            "Food additive name, E-number, or CAS number (e.g. 'aspartame', 'E951', '22839-47-0')"
+            "Food additive common name (e.g. 'aspartame'), E-number used in EU-style food labeling (e.g. 'E951'), INS number where applicable, or CAS number (Chemical Abstracts Service registry number, e.g. '22839-47-0'). E-number or exact additive name is preferred for regulatory matching."
           ),
       },
       async ({ query }) => {
@@ -404,13 +404,13 @@ export class FoodMCP extends McpAgent<Env> {
           .min(1)
           .max(MAX_BATCH_INPUT_LENGTH)
           .describe(
-            "Comma-separated or newline-separated list of food ingredients (e.g. 'Water, Sugar, Citric Acid, Sodium Benzoate, Aspartame')"
+            "Comma-separated or newline-separated packaged-food ingredient list exactly as it appears on a label (e.g. 'Water, Sugar, Citric Acid, Sodium Benzoate, Aspartame'). Include additives, colors, preservatives, and E-numbers; the tool scans up to configured batch limits for safety and compliance flags."
           ),
         market: z
           .enum(FOOD_MARKETS)
           .optional()
           .describe(
-            "Target market for compliance check (e.g. 'EU', 'US', 'Israel'). Defaults to EU + US."
+            "Optional target food regulatory market for compliance focus. Use 'EU', 'US', or 'Israel' when the user asks about a specific market; omit for the default EU + US scan."
           ),
       },
       async ({ ingredients, market }) => {
@@ -576,13 +576,13 @@ export class FoodMCP extends McpAgent<Env> {
           .min(1)
           .max(MAX_QUERY_INPUT_LENGTH)
           .describe(
-            "Search keyword (e.g. 'preservative', 'sweetener', 'hyperactivity', 'banned', 'E1')"
+            "Food additive keyword, function, category, dietary status, or concern (e.g. 'preservative', 'sweetener', 'hyperactivity', 'banned', 'E1'). Use broad terms for discovery and exact additive names/E-numbers for narrower matching."
           ),
         filter: z
           .enum(FOOD_SEARCH_FILTERS)
           .optional()
           .describe(
-            "Optional filter: 'high_risk' (score >= 7), 'allergens', 'banned', 'not_vegan', 'not_halal'. Leave empty for all matches."
+            "Optional food-additive filter. Use 'high_risk' for elevated safety scores, 'allergens' for allergen-linked additives, 'banned' for restricted/banned signals, 'not_vegan' for animal-derived concerns, or 'not_halal' for halal compatibility concerns."
           ),
         limit: z
           .number()
@@ -590,7 +590,7 @@ export class FoodMCP extends McpAgent<Env> {
           .min(1)
           .max(MAX_SEARCH_RESULTS)
           .optional()
-          .describe("Max results to return (1-25, default 10)"),
+          .describe("Maximum number of additive records to return (1-25, default 10). Use higher limits for broad classes like preservatives and lower limits for exact additive names."),
       },
       async ({ query, filter, limit }) => {
         const maxResults = Math.min(Math.max(limit || 10, 1), MAX_SEARCH_RESULTS);
@@ -689,7 +689,7 @@ export class FoodMCP extends McpAgent<Env> {
           .min(1)
           .max(MAX_QUERY_INPUT_LENGTH)
           .describe(
-            "Food name in Hebrew or English (e.g. 'חומוס', 'hummus', 'chicken breast', 'לחם')"
+            "Food name in Hebrew or English for Israeli Ministry of Health nutrition lookup (e.g. 'hummus', 'chicken breast', 'bread'). Use a specific food item rather than an additive, crop, or supplement."
           ),
       },
       async ({ query }) => {
@@ -809,7 +809,7 @@ export class FoodMCP extends McpAgent<Env> {
           .min(1)
           .max(MAX_QUERY_INPUT_LENGTH)
           .describe(
-            "Pesticide name, crop name, or both (e.g. 'glyphosate', 'tomato', 'chlorpyrifos apple')"
+            "Pesticide active substance, crop name, or pesticide-plus-crop phrase for Israeli MRL lookup (e.g. 'glyphosate', 'tomato', 'chlorpyrifos apple'). Use crop/pesticide pairs when the requested residue limit depends on the food commodity."
           ),
       },
       async ({ query }) => {

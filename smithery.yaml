@@ -1,5 +1,5 @@
 description: >-
-  Is E171 safe as a food additive? Roots by Benda checks 6,450+ food additives, 6,563+ JECFA evaluations, 5,251+ EFSA substances, 77,278+ synonyms, 4,624 nutrition profiles, and 3,708 pesticide MRLs. Food safety across additives, E-numbers, JECFA/EFSA, halal/kosher/vegan status, nutrition, and pesticide residue limits in one free MCP. Ask your AI: 'check if E171 is safe as a food additive'. Built by one human + Claude. Free. Source-linked.
+  Check food additive safety across JECFA, EFSA, dietary, nutrition, and MRL data. Roots by Benda checks 6,450+ food additives, 6,563+ JECFA evaluations, 5,251+ EFSA substances, 77,278+ synonyms, 4,624 nutrition profiles, and 3,708 pesticide MRLs. Food safety across additives, E-numbers, JECFA/EFSA, halal/kosher/vegan status, nutrition, and pesticide residue limits in one free MCP. Ask your AI: 'check if E171 is safe as a food additive'. Built by one human + Claude. Free. Source-linked.
 startCommand:
   type: "http"
   configSchema:
