@@ -1,5 +1,7 @@
 # Roots by Benda — Food Safety & Regulatory Intelligence MCP Server
 
+[![smithery badge](https://smithery.ai/badge/twohalves/food-safety)](https://smithery.ai/servers/twohalves/food-safety)
+
 **Food additive safety, nutrition, and pesticide residue data in one MCP.** Check any E-number, food additive, or ingredient against JECFA/EFSA evaluations, ADI limits, allergen flags, dietary compatibility (halal/kosher/vegan), Israeli nutrition profiles, and pesticide MRLs — all source-linked and free.
 
 Equivalent data through commercial food safety platforms (FoodNavigator Pro, Decernis) costs $15,000+/year. This MCP is free.
