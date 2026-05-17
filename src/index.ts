@@ -2,6 +2,12 @@ import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
+const READ_ONLY_TOOL_ANNOTATIONS = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  openWorldHint: false,
+} as const;
+
 // Escape LIKE special characters in user input to prevent wildcard injection
 function escapeLike(s: string): string {
   return s.replace(/[%_\\]/g, '\\$&');
@@ -203,6 +209,7 @@ export class FoodMCP extends McpAgent<Env> {
             "Food additive common name (e.g. 'aspartame'), E-number used in EU-style food labeling (e.g. 'E951'), INS number where applicable, or CAS number (Chemical Abstracts Service registry number, e.g. '22839-47-0'). E-number or exact additive name is preferred for regulatory matching."
           ),
       },
+      READ_ONLY_TOOL_ANNOTATIONS,
       async ({ query }) => {
         const q = normalizeQuery(query);
 
@@ -413,6 +420,7 @@ export class FoodMCP extends McpAgent<Env> {
             "Optional target food regulatory market for compliance focus. Use 'EU', 'US', or 'Israel' when the user asks about a specific market; omit for the default EU + US scan."
           ),
       },
+      READ_ONLY_TOOL_ANNOTATIONS,
       async ({ ingredients, market }) => {
         const names = ingredients
           .split(/[,\n]+/)
@@ -592,6 +600,7 @@ export class FoodMCP extends McpAgent<Env> {
           .optional()
           .describe("Maximum number of additive records to return (1-25, default 10). Use higher limits for broad classes like preservatives and lower limits for exact additive names."),
       },
+      READ_ONLY_TOOL_ANNOTATIONS,
       async ({ query, filter, limit }) => {
         const maxResults = Math.min(Math.max(limit || 10, 1), MAX_SEARCH_RESULTS);
         const q = normalizeQuery(query);
@@ -692,6 +701,7 @@ export class FoodMCP extends McpAgent<Env> {
             "Food name in Hebrew or English for Israeli Ministry of Health nutrition lookup (e.g. 'hummus', 'chicken breast', 'bread'). Use a specific food item rather than an additive, crop, or supplement."
           ),
       },
+      READ_ONLY_TOOL_ANNOTATIONS,
       async ({ query }) => {
         const q = normalizeQuery(query);
 
@@ -812,6 +822,7 @@ export class FoodMCP extends McpAgent<Env> {
             "Pesticide active substance, crop name, or pesticide-plus-crop phrase for Israeli MRL lookup (e.g. 'glyphosate', 'tomato', 'chlorpyrifos apple'). Use crop/pesticide pairs when the requested residue limit depends on the food commodity."
           ),
       },
+      READ_ONLY_TOOL_ANNOTATIONS,
       async ({ query }) => {
         const q = normalizeQuery(query);
         const parts = q.split(/\s+/);
