@@ -133,13 +133,13 @@ async function resolveAuth(request: Request, env: Env): Promise<AuthProps> {
 }
 // --- End auth ---
 
-const SERVER_VERSION = "1.0.0";
+const SERVER_VERSION = "1.0.2";
 const HOMEPAGE = "https://rootsbybenda.com";
 const SOURCE = "Roots by Benda \u2014 rootsbybenda.com";
-const CONTACT = "SBD@effortlessai.ai";
+const CONTACT = "support@rootsbybenda.com";
 const SERVER_NAME = "Roots by Benda \u2014 Food Intelligence";
 const SERVER_DESCRIPTION =
-  "Check food additive safety across JECFA, EFSA, dietary, nutrition, and MRL data.";
+  "Food additive safety regulatory reference data: verified safety scores, ADI values, JECFA/EFSA evaluations, allergen and dietary flags, EU/US/Israel regulatory status, Israeli nutrition profiles, and pesticide MRL limits. 6,450+ additives, 6,563 JECFA evaluations, 5,251 EFSA substances, 77,278 synonyms, 4,624 nutrition profiles, 3,708 pesticide MRLs.";
 const DATA_CATALOG = {
   food_additives: "6,450+",
   jecfa_evaluations: "6,563+",
@@ -152,23 +152,23 @@ const DATA_CATALOG = {
 const TOOL_CATALOG = [
   {
     name: "check_additive",
-    description: "Check a food additive by name, E-number, or CAS number. Use when the user asks whether an additive such as E171, aspartame, sodium benzoate, tartrazine, or a preservative/color/sweetener is safe, permitted, high-risk, allergenic, vegan, halal, kosher, or regulated. Do not use for full ingredient-list scans, Israeli nutrition lookup, pesticide MRL questions, or broad additive discovery without a specific additive. The response includes additive identifiers, safety score, ADI, JECFA/EFSA evidence, EU/US/Israel status, health concerns, allergens, and dietary compatibility."
+    description: "Retrieve verified food additive safety data including toxicological evaluations, regulatory status, and dietary compatibility from 6,450+ food additive records. Input: additive common name, E-number, or CAS number (e.g. 'aspartame', 'E951', '22839-47-0'). Returns: safety score (1-10 scale), ADI (Acceptable Daily Intake) with source, JECFA evaluation history (ADI status, functional class, evaluation year), EFSA toxicology data (ADI/TDI/NOAEL values, genotoxicity), EU and US regulatory status, Israel MOH permitted-additive status, IARC classification, health concerns, allergen flags, dietary compatibility (vegan, halal, kosher, diabetic), PubChem chemistry data, common foods, and banned-country list. Sources: JECFA (6,563 evaluations), EFSA (5,251 substances), EU food additive regulations, US FDA GRAS, Israel MOH, IARC. For food additive safety assessment and regulatory compliance. Do not use for full ingredient-list scans (use check_ingredient_list), nutrition queries (use check_nutrition), or pesticide MRLs (use check_pesticide_mrl)."
   },
   {
     name: "check_ingredient_list",
-    description: "Scan a packaged-food ingredient list for additive safety and regulatory flags. Use when the user pastes a label or asks to review a product for high-risk additives, banned additives, allergens, or vegan/halal/kosher compatibility in a target market. Do not use for single additive lookup, nutrition facts lookup, pesticide residue limits, or free-text additive category discovery. The response includes matched additives, risk scores, market-specific regulatory notes, allergen and dietary flags, and an overall food safety assessment."
+    description: "Scan a packaged-food product ingredient list for additive safety risks, regulatory compliance, allergens, and dietary compatibility across target markets. Input: comma-separated ingredient list as printed on food packaging (up to 60 ingredients). Returns per-ingredient: matched additive name, E-number, safety score (1-10), category, EU/US status, health concerns, allergen flags, and ADI. Returns overall: LOW/MODERATE/HIGH risk assessment, average safety score, flagged high-risk additives with reasons and banned-country data, allergen warnings, and market-specific compliance notes. Database: 6,450+ food additives with 77,278 synonyms for fuzzy matching. For food product safety screening and market compliance. Do not use for single additive lookup (use check_additive), nutrition facts (use check_nutrition), or pesticide MRLs (use check_pesticide_mrl)."
   },
   {
     name: "search_additives",
-    description: "Search food additives by keyword, function, category, dietary status, or health concern. Use when the user asks to find preservatives, colorants, sweeteners, emulsifiers, allergens, banned additives, non-vegan additives, non-halal additives, or high-risk E-numbers before checking one additive. Do not use when the user provides a full food label, an exact additive needing safety evidence, a nutrition query, or a pesticide/crop residue question. The response includes matching additive names, E-numbers, categories/functions, risk indicators, dietary flags, and filter-matched context."
+    description: "Search food additive records by keyword, function, category, dietary filter, or health concern for additive discovery and selection. Input: food additive keyword (e.g. 'preservative', 'sweetener', 'hyperactivity', 'banned', 'E1') with optional filter (high_risk, allergens, banned, not_vegan, not_halal). Returns: matching additive names, E-numbers, CAS numbers, Hebrew names, categories, functions, safety scores (1-10), EU/US status, health concerns, allergen flags, dietary status (vegan/halal/kosher), and ADI values. Database: 6,450+ food additives searchable by name, function, category, and Hebrew name. For food additive discovery and category exploration. Do not use when the user has an exact additive name/E-number for full safety data (use check_additive)."
   },
   {
     name: "check_nutrition",
-    description: "Check Israeli Ministry of Health nutrition data for a food item in Hebrew or English. Use when the user asks for calories, macros, vitamins, minerals, amino acids, fatty acids, sugars, fiber, cholesterol, or per-100g nutrition for a food. Do not use for additive safety, ingredient-list compliance, pesticide MRLs, drug nutrition interactions, or general recipe advice without a food item. The response includes per-100g energy, macronutrients, micronutrients, fatty acids, cholesterol, sugars, fiber, and source food names where matched."
+    description: "Retrieve Israeli Ministry of Health official nutrition data for a food item by name in Hebrew or English. Input: food name (e.g. 'hummus', 'chicken breast', 'bread', or Hebrew equivalent). Returns per 100g: energy (kcal), protein, total fat, carbohydrates, dietary fiber, total sugars, alcohol, moisture; vitamins (A, C, E, D, K, B6, B12, thiamin, riboflavin, niacin, folate); minerals (calcium, iron, magnesium, phosphorus, zinc, selenium, sodium, potassium, choline); fats (cholesterol, saturated, mono/polyunsaturated, trans). Source: Israel Ministry of Health Nutrition Database (4,624 food items). For nutritional analysis and dietary reference. Do not use for additive safety (use check_additive) or pesticide MRLs (use check_pesticide_mrl)."
   },
   {
     name: "check_pesticide_mrl",
-    description: "Check Israeli pesticide maximum residue limits by pesticide, crop, or combined query. Use when the user asks whether a pesticide residue is allowed on a crop, needs an MRL in mg/kg, or provides pairs like glyphosate tomato or chlorpyrifos apple. Do not use for food additive safety, packaged ingredient lists, nutrition facts, cannabis pesticide testing limits, or non-Israeli MRL regimes. The response includes active substance, crop, official MRL value and unit, update date, regulatory notes, and pending-change notes where available."
+    description: "Check Israeli official pesticide Maximum Residue Limits (MRL) by pesticide active substance, crop, or pesticide-crop pair. Input: pesticide name, crop name, or combined query in Hebrew or English (e.g. 'glyphosate', 'tomato', 'chlorpyrifos apple'). Returns: active substance, crop (Hebrew and English), official MRL value in mg/kg (ppm), last update date, and pending regulatory changes. Source: Israel Ministry of Health Pesticide Residue Limits (3,708 pesticide-crop MRL records). For agricultural compliance and food safety residue assessment. Do not use for food additive safety (use check_additive), cannabis pesticide limits, or non-Israeli MRL regimes."
   }
 ];
 
@@ -318,7 +318,7 @@ export class FoodMCP extends McpAgent<Env> {
           .bind((additive.e_number as string) || "")
           .first();
 
-        const result = {
+        const result: Record<string, unknown> = {
           name: additive.common_name,
           e_number: additive.e_number || null,
           chemical_name: additive.chemical_name || null,
@@ -327,6 +327,10 @@ export class FoodMCP extends McpAgent<Env> {
           category: additive.category,
           function: additive.function_desc,
           source_type: additive.source_type,
+          data_freshness: {
+            database_version: "2026-05",
+            source_type: "food_additive_safety_regulatory_reference_data",
+          },
           safety_score: additive.safety_score,
           safety_score_scale: "1 (safest) to 10 (most concerning)",
           chemistry: {
@@ -340,11 +344,11 @@ export class FoodMCP extends McpAgent<Env> {
           adi: {
             value: additive.adi_value,
             unit: additive.adi_unit,
-            source: additive.adi_source,
+            source: additive.adi_source || "JECFA/EFSA ADI evaluation",
           },
           regulatory: {
-            eu_status: additive.eu_status,
-            us_status: additive.us_status,
+            eu_status: { value: additive.eu_status, source: "EU food additive regulations" },
+            us_status: { value: additive.us_status, source: "US FDA GRAS / food additive status" },
             max_permitted_level_ppm: additive.max_permitted_level_ppm || null,
             banned_countries: additive.banned_countries || null,
             israel: ilStatus
@@ -352,13 +356,14 @@ export class FoodMCP extends McpAgent<Env> {
                   status: ilStatus.status,
                   type: ilStatus.additive_type,
                   notes: ilStatus.notes,
+                  source: "Israel MOH Permitted Food Additives",
                 }
               : null,
           },
           health: {
             concerns: additive.health_concerns,
             allergen: additive.allergen_flag,
-            iarc_group: additive.iarc_group || null,
+            iarc_group: { value: additive.iarc_group || null, source: additive.iarc_group ? "IARC Monographs" : null },
             hyperactivity_link: additive.hyperactivity_link || null,
             pregnancy_safe: additive.pregnancy_safe || null,
             children_safe: additive.children_safe || null,
@@ -378,6 +383,7 @@ export class FoodMCP extends McpAgent<Env> {
               status: j.adi_status,
               functional_class: j.functional_class,
               evaluation_year: j.evaluation_year,
+              source: "JECFA (Joint FAO/WHO Expert Committee on Food Additives)",
             })) || [],
           efsa_data:
             efsa.results?.map((e: Record<string, unknown>) => ({
@@ -387,10 +393,41 @@ export class FoodMCP extends McpAgent<Env> {
                 ? `${e.noael_value} ${e.noael_unit}`
                 : null,
               genotoxicity: e.genotoxicity,
+              source: "EFSA (European Food Safety Authority)",
             })) || [],
           source: "Roots by Benda — rootsbybenda.com",
-          data_verified: "2026-03",
         };
+
+        // Build citation_ready
+        // K76: conditional source attribution — only authorities that actually contributed data
+        const citAdditiveId = [additive.common_name, additive.e_number ? `(${additive.e_number})` : null, additive.cas_number ? `CAS ${additive.cas_number}` : null].filter(Boolean).join(" ");
+        const citParts: string[] = [];
+        const sourcesUsed = new Set<string>();
+        if (additive.safety_score) {
+          citParts.push(`safety score ${additive.safety_score}/10`);
+          sourcesUsed.add("Roots curated");
+        }
+        if (additive.adi_value) {
+          citParts.push(`ADI ${additive.adi_value} ${additive.adi_unit || ""}`);
+          sourcesUsed.add("JECFA/EFSA"); // ADI databases — can't disambiguate per-row without source linkage
+        }
+        if (additive.eu_status) {
+          citParts.push(`EU: ${additive.eu_status}`);
+          sourcesUsed.add("EU food regulation");
+        }
+        if (additive.us_status) {
+          citParts.push(`US: ${additive.us_status}`);
+          sourcesUsed.add("US FDA");
+        }
+        if (ilStatus) {
+          citParts.push(`Israel: ${ilStatus.status}`);
+          sourcesUsed.add("Israel MoH");
+        }
+        const sourcesArr = Array.from(sourcesUsed).sort();
+        const sourceTail = sourcesArr.length > 0
+          ? ` — sourced from ${sourcesArr.join(", ")}`
+          : "";
+        result.citation_ready = `${citAdditiveId}: ${citParts.join("; ")}. Source: Roots by Benda (rootsbybenda.com)${sourceTail}.`;
 
         return {
           content: [
@@ -545,24 +582,29 @@ export class FoodMCP extends McpAgent<Env> {
               ) / scoredResults.length
             : 0;
 
-        const summary = {
+        const overallAssessment = flagged.length === 0 && avgScore <= 3
+              ? "LOW RISK"
+              : flagged.length <= 2 && avgScore <= 5
+                ? "MODERATE RISK"
+                : "HIGH RISK";
+        const summary: Record<string, unknown> = {
           total_ingredients: names.length,
           additives_found: found,
           not_recognized: notFound,
           flagged_count: flagged.length,
           allergen_count: allergens.length,
           average_safety_score: Math.round(avgScore * 10) / 10,
-          overall_assessment:
-            flagged.length === 0 && avgScore <= 3
-              ? "LOW RISK"
-              : flagged.length <= 2 && avgScore <= 5
-                ? "MODERATE RISK"
-                : "HIGH RISK",
+          overall_assessment: overallAssessment,
           flagged_additives: flagged,
           allergen_warnings: allergens,
           all_results: results,
           market_checked: market || "EU + US (default)",
+          data_freshness: {
+            database_version: "2026-05",
+            source_type: "food_additive_safety_regulatory_reference_data",
+          },
           source: "Roots by Benda — rootsbybenda.com",
+          citation_ready: `Food label scan (${names.length} ingredients, ${market || "EU+US"}): ${overallAssessment}. ${found} additives matched, ${flagged.length} flagged${allergens.length > 0 ? `, ${allergens.length} allergen warnings` : ""}. Avg safety score ${Math.round(avgScore * 10) / 10}/10. Source: Roots by Benda (rootsbybenda.com).`,
         };
 
         return {
@@ -676,6 +718,11 @@ export class FoodMCP extends McpAgent<Env> {
                         ? `${r.adi_value} ${r.adi_unit}`
                         : null,
                     })) || [],
+                  data_freshness: {
+                    database_version: "2026-05",
+                    source_type: "food_additive_safety_regulatory_reference_data",
+                  },
+                  citation_ready: `Food additive search "${query}"${filter ? ` (filter: ${filter})` : ""}: ${results.results?.length || 0} matches from 6,450+ additives. Source: Roots by Benda (rootsbybenda.com).`,
                   source: "Roots by Benda — rootsbybenda.com",
                 },
                 null,
@@ -798,6 +845,7 @@ export class FoodMCP extends McpAgent<Env> {
             trans_fat_g: food.trans_fatty_acids,
           },
           source: "Israel MOH Nutrition Database — Roots by Benda (rootsbybenda.com)",
+          citation_ready: `${food.english_name || food.hebrew_name} (per 100g): ${food.food_energy || "N/A"} kcal, ${food.protein || "N/A"}g protein, ${food.total_fat || "N/A"}g fat, ${food.carbohydrates || "N/A"}g carbs. Source: Israel Ministry of Health Nutrition Database via Roots by Benda (rootsbybenda.com).`,
         };
 
         return {
@@ -890,8 +938,10 @@ export class FoodMCP extends McpAgent<Env> {
                     mrl_mg_per_kg: r.mrl_value,
                     last_updated: r.update_date,
                     pending_change: r.mrl_pending || null,
+                    source: "Israel MOH Pesticide Residue Limits",
                   })),
                   note: "MRL = Maximum Residue Limit in mg/kg (ppm). Values set by Israel MOH.",
+                  citation_ready: `Pesticide MRL search "${query}": ${results.results.length} records. Source: Israel Ministry of Health Pesticide Residue Limits via Roots by Benda (rootsbybenda.com).`,
                   source: "Israel MOH Pesticide Residues — Roots by Benda (rootsbybenda.com)",
                 },
                 null,
@@ -923,6 +973,16 @@ export default {
       if (!checkRateLimit(rateLimitKey)) {
         return rateLimitResponse();
       }
+    }
+
+    // SEP-1649: route MCP clients that POST initialize to root to streamable HTTP.
+    if (request.method === "POST" && url.pathname === "/") {
+      if (!auth) auth = await resolveAuth(request, env);
+      (ctx as ExecutionContext & { props?: AuthProps }).props = auth;
+      const mcpUrl = new URL(request.url);
+      mcpUrl.pathname = "/mcp";
+      const mcpRequest = new Request(mcpUrl.toString(), request);
+      return FoodMCP.serve("/mcp").fetch(mcpRequest, env, ctx);
     }
 
     // Health check

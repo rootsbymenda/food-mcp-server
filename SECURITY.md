@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security issue in this MCP server, its optional authentication flow, or its tool handlers, please email **SBD@effortlessai.ai** with:
+If you discover a security issue in this MCP server, its optional authentication flow, or its tool handlers, please email **support@rootsbybenda.com** with:
 
 - A description of the issue
 - Steps to reproduce (curl one-liner if possible)
